@@ -8,7 +8,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd );
 # location of sqlite database file
 DB="$DIR/boundaries.sqlite3";
 
-# note: this required you compile the latest version of libspatialite
+# note: this code requires the very latest version of libspatialite
 # see: https://www.gaia-gis.it/fossil/libspatialite/tktview?name=74ba14876c
 
 # note: requires libspatialite to be compiled with librttopo
