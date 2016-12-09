@@ -11,15 +11,14 @@ DB="$DIR/boundaries.sqlite3";
 # note: this required you compile the latest version of libspatialite
 # see: https://www.gaia-gis.it/fossil/libspatialite/tktview?name=74ba14876c
 
-# note: requires libspatialite to be conpiled with librttopo
+# note: requires libspatialite to be compiled with librttopo
 export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib;
 
 # note: this requires that sqlite3 is compiled with the json1 extension
 # example: ./configure --enable-json1;
 
-
-# set up a new database
-function setup(){
+# init - set up a new database
+function init(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
 SELECT InitSpatialMetaData(1);
@@ -160,23 +159,37 @@ AND WITHIN(( SELECT geom FROM boundary WHERE id=$1 ), geom );
 SQL
 }
 
-# setup;
+# --- standard build process ---
+# init;
 # index_all "$DIR/data";
 # fixify;
 # bboxify;
 
-# berlin test data
+# --- berlin test data ---
 # index '/data/boundaries/data/000/016/347/000016347.geojson';
 # index '/data/boundaries/data/000/016/566/000016566.geojson';
 # index '/data/boundaries/data/000/051/477/000051477.geojson';
 # index '/data/boundaries/data/000/062/422/000062422.geojson';
-# pip '13.402247' '52.50952';
-# bboxify;
 # pipfast '13.402247' '52.50952';
-
-pipfast '174.766843' '-41.288788';
-
 # 16347|Mitte|9|borough|
 # 16566|Mitte|10|suburb|
 # 51477|Deutschland|2||
 # 62422|Berlin|4|state|
+
+# cli runner
+case "$1" in
+'init') init;;
+'json') json "$2" "$3";;
+'index') index "$2";;
+'index_all') index_all "$2";;
+'bboxify') bboxify;;
+'fixify') fixify;;
+'pip') pip "$2" "$3";;
+'pipfast') pipfast "$2" "$3";;
+'contains') contains "$2";;
+'within') within "$2";;
+*)
+  echo "invalid command: $1"
+  grep -B2 'function ' $0;
+  ;;
+esac
