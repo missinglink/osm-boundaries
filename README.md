@@ -93,6 +93,46 @@ Run Time: real 0.113 user 0.116000 sys 0.000000
 ```bash
 sqlite> SELECT COUNT(*) FROM boundary;
 392355
+
+sqlite> SELECT place, COUNT(place) AS count FROM boundary GROUP BY place ORDER BY count DESC;
+locality|60219
+village|11493
+city|8759
+hamlet|6378
+town|5527
+suburb|4970
+neighbourhood|2574
+county|1648
+borough|1311
+district|1117
+municipality|1096
+township|383
+subdistrict|297
+department|230
+island|221
+state|215
+quarter|131
+allotments|94
+province|93
+region|91
+subward|82
+ward|61
+islet|38
+archipelago|12
+isolated_dwelling|12
+townland|3
+country|2
+8|1
+Mbuyuni|1
+Mchangani|1
+Sindano|1
+Zechow|1
+corporation|1
+farm|1
+independent_city|1
+metropolitan government|1
+special ward|1
+suward|1
 ```
 
 #### can I have the code that produced this?
