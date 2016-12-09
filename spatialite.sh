@@ -98,8 +98,8 @@ SQL
 function pipfast(){
   sqlite3 $DB <<SQL
 SELECT load_extension('/usr/local/lib/mod_spatialite');
-SELECT * FROM box JOIN boundary on box.id = boundary.id
-WHERE ( minX<=$1 AND maxX>=$1 AND minY<=$2 AND maxY>=$2 )
+SELECT * FROM boundary
+WHERE id IN ( SELECT id FROM box WHERE minX<=$1 AND maxX>=$1 AND minY<=$2 AND maxY>=$2 )
 AND within( GeomFromText('POINT( $1 $2 )', 4326 ), boundary.geom );
 SQL
 }
@@ -116,6 +116,8 @@ SQL
 # pip '13.402247' '52.50952';
 # bboxify;
 # pipfast '13.402247' '52.50952';
+
+pipfast '174.766843' '-41.288788';
 
 # 16347|Mitte|9|borough|
 # 16566|Mitte|10|suburb|

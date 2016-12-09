@@ -77,8 +77,12 @@ $ sqlite3 boundaries.sqlite3
 
 sqlite> SELECT load_extension('mod_spatialite');
 sqlite> .timer on
-sqlite> SELECT boundary.* FROM box JOIN boundary on box.id = boundary.id
-WHERE ( minX<=13.402247 AND maxX>=13.402247 AND minY<=52.50952 AND maxY>=52.50952 )
+sqlite> SELECT * FROM boundary
+WHERE id IN (
+  SELECT id FROM box
+  WHERE minX<=13.402247 AND maxX>=13.402247
+  AND minY<=52.50952 AND maxY>=52.50952
+)
 AND within( GeomFromText('POINT( 13.402247 52.50952 )', 4326 ), boundary.geom );
 
 51477|Deutschland|2||
