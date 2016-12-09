@@ -2,10 +2,11 @@
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
+var datadir = path.resolve( __dirname, './data/' );
 
 var meta = [];
-var header = ['type','id','place','admin_level','name','population','id_in'].join('\t');
-var format = ['%s','%d','%s','%s','%s','%s','%s'].join('\t');
+var header = ['name','type','id','path','place','admin_level','population'].join('\t');
+var format = ['%s','%s','%d','%s','%s','%s','%s'].join('\t');
 
 // find all geojson files recursively
 function walk( dir ){
@@ -22,11 +23,11 @@ function walk( dir ){
 }
 
 // parse each geojson file and extract meta data
-walk( path.resolve( __dirname, './data/' ) ).forEach( function( file ){
+walk( datadir ).forEach( function( file ){
   // console.error( file );
   var geojson = parse( file );
   var i = info( geojson );
-  i.file = file;
+  i.path = file.replace( datadir + '/', '' );
   meta.push( i );
 });
 
@@ -41,12 +42,13 @@ process.stdout.write( meta.map( serialize ).join( '\n' ) );
 
 // serialize meta data memo
 function serialize( memo ){
-  return util.format( format, memo.type, memo.id,
-    JSON.stringify( memo.place || '' ),
+  return util.format( format,
+    ( memo.name || '' ).replace(/\t/g, ' '),
+    ( memo.type || '' ).replace(/\t/g, ' '),
+    memo.id, memo.path,
     memo.level || '',
-    JSON.stringify( memo.name || '' ),
-    memo.population || '',
-    JSON.stringify( memo.is_in || '' )
+    ( memo.place || '' ).replace(/\t/g, ' '),
+    memo.population || ''
   );
 }
 
