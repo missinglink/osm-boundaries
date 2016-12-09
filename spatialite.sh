@@ -11,26 +11,27 @@ DB="$DIR/boundaries.sqlite3";
 # note: this required you compile the latest version of libspatialite
 # see: https://www.gaia-gis.it/fossil/libspatialite/tktview?name=74ba14876c
 
+# note: requires libspatialite to be conpiled with librttopo
+export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib;
+
 # note: this requires that sqlite3 is compiled with the json1 extension
 # example: ./configure --enable-json1;
+
 
 # set up a new database
 function setup(){
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
+SELECT load_extension('mod_spatialite');
 SELECT InitSpatialMetaData(1);
-CREATE TABLE boundary (
+CREATE TABLE IF NOT EXISTS boundary (
   id INTEGER NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
   level INTEGER,
   place TEXT
 );
+CREATE INDEX IF NOT EXISTS level_idx ON boundary(level);
+CREATE INDEX IF NOT EXISTS place_idx ON boundary(place);
 SELECT AddGeometryColumn('boundary', 'geom', 4326, 'GEOMETRY', 'XY', 1);
-CREATE VIRTUAL TABLE box USING rtree(
-   id INTEGER NOT NULL PRIMARY KEY,
-   minX REAL, maxX REAL,
-   minY REAL, maxY REAL
-);
 SQL
 }
 
@@ -39,9 +40,9 @@ SQL
 # $2: property to extract: eg. '$.geometry'
 function json(){
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
+SELECT load_extension('mod_spatialite');
 WITH file AS ( SELECT readfile('$1') as json )
-SELECT json_extract( (SELECT json FROM file), '$2' );
+SELECT json_extract(( SELECT json FROM file ), '$2' );
 SQL
 }
 
@@ -50,15 +51,15 @@ SQL
 function index(){
   echo $1;
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
+SELECT load_extension('mod_spatialite');
 WITH file AS ( SELECT readfile('$1') AS json )
 INSERT INTO boundary ( id, name, level, place, geom )
 VALUES (
-  json_extract((SELECT json FROM file), '$.properties.id'),
-  json_extract((SELECT json FROM file), '$.properties.tags.name'),
-  json_extract((SELECT json FROM file), '$.properties.tags.admin_level'),
-  json_extract((SELECT json FROM file), '$.properties.tags.place'),
-  SetSRID( GeomFromGeoJSON( json_extract((SELECT json FROM file), '$.geometry') ), 4326 )
+  json_extract(( SELECT json FROM file ), '$.properties.id'),
+  json_extract(( SELECT json FROM file ), '$.properties.tags.name'),
+  json_extract(( SELECT json FROM file ), '$.properties.tags.admin_level'),
+  json_extract(( SELECT json FROM file ), '$.properties.tags.place'),
+  SetSRID( GeomFromGeoJSON( json_extract(( SELECT json FROM file ), '$.geometry') ), 4326 )
 );
 SQL
 }
@@ -66,10 +67,23 @@ SQL
 # bboxify - create the rtree index required by the 'pipfast' function
 function bboxify(){
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
-INSERT INTO box ( id, minX, maxX, minY, maxY )
-SELECT id, MbrMinX(geom), MbrMaxX(geom), MbrMinY(geom), MbrMaxY(geom)
+SELECT load_extension('mod_spatialite');
+CREATE VIRTUAL TABLE IF NOT EXISTS box USING rtree(
+   id INTEGER NOT NULL PRIMARY KEY,
+   minX REAL, maxX REAL,
+   minY REAL, maxY REAL
+);
+INSERT OR REPLACE INTO box ( id, minX, maxX, minY, maxY )
+SELECT id, MbrMinX( geom ), MbrMaxX( geom ), MbrMinY( geom ), MbrMaxY( geom )
 FROM boundary;
+SQL
+}
+
+# fixify - fix broken geometries
+function fixify(){
+  sqlite3 $DB <<SQL
+SELECT load_extension('mod_spatialite');
+UPDATE boundary SET geom = MakeValid( geom );
 SQL
 }
 
@@ -86,9 +100,9 @@ function index_all(){
 # $2: latitude: eg. '-33.013441'
 function pip(){
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
+SELECT load_extension('mod_spatialite');
 SELECT * FROM boundary
-WHERE within( GeomFromText('POINT( $1 $2 )', 4326 ), boundary.geom );
+WHERE within( GeomFromText('POINT( $1 $2 )', 4326 ), geom );
 SQL
 }
 
@@ -97,15 +111,58 @@ SQL
 # $2: latitude: eg. '-33.013441'
 function pipfast(){
   sqlite3 $DB <<SQL
-SELECT load_extension('/usr/local/lib/mod_spatialite');
+SELECT load_extension('mod_spatialite');
 SELECT * FROM boundary
-WHERE id IN ( SELECT id FROM box WHERE minX<=$1 AND maxX>=$1 AND minY<=$2 AND maxY>=$2 )
-AND within( GeomFromText('POINT( $1 $2 )', 4326 ), boundary.geom );
+WHERE id IN (
+  SELECT id FROM box
+  WHERE minX<=$1
+    AND maxX>=$1
+    AND minY<=$2
+    AND maxY>=$2
+)
+AND within( GeomFromText( 'POINT($1 $2)', 4326 ), geom );
+SQL
+}
+
+# contains - find all child polygons contained by: $1
+# $1: id: eg. '2316741'
+function contains(){
+  sqlite3 $DB <<SQL
+SELECT load_extension('mod_spatialite');
+SELECT * FROM boundary
+WHERE id IN (
+  SELECT id FROM box
+  WHERE minX>=( SELECT minX FROM box WHERE id=$1 )
+    AND maxX<=( SELECT maxX FROM box WHERE id=$1 )
+    AND minY>=( SELECT minY FROM box WHERE id=$1 )
+    AND maxY<=( SELECT maxY FROM box WHERE id=$1 )
+  AND id != $1
+)
+AND CONTAINS(( SELECT geom FROM boundary WHERE id=$1 ), geom );
+SQL
+}
+
+# within - find all parent polygons containing id: $1
+# $1: id: eg. '2316741'
+function within(){
+  sqlite3 $DB <<SQL
+SELECT load_extension('mod_spatialite');
+SELECT * FROM boundary
+WHERE id IN (
+  SELECT id FROM box
+  WHERE minX<=( SELECT minX FROM box WHERE id=$1 )
+    AND maxX>=( SELECT maxX FROM box WHERE id=$1 )
+    AND minY<=( SELECT minY FROM box WHERE id=$1 )
+    AND maxY>=( SELECT maxY FROM box WHERE id=$1 )
+  AND id != $1
+)
+AND WITHIN(( SELECT geom FROM boundary WHERE id=$1 ), geom );
 SQL
 }
 
 # setup;
 # index_all "$DIR/data";
+# fixify;
 # bboxify;
 
 # berlin test data
