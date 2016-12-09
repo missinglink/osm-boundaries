@@ -46,18 +46,20 @@ the file was parsed using a golang pbf parser, a combination of bitmasks and a l
 
 the geojson is then produced using a nodejs process running scripts from https://github.com/tyrasd/osmtogeojson.
 
-#### can I use this data to to do point-in-polygon lookups?
+#### can I use this data to do point-in-polygon lookups?
 
 there is an included script which can be used to build a spatialite database.
 
-in order to build it yourself you'll need to compile some recent versions of the libs, I uploaded a copy to s3 which you can just download and should work fine with older versions of spatialite.
+in order to build it yourself you'll need to compile some recent versions of the libs, I uploaded a copy to s3 which you can download and should work fine with older versions of spatialite and sqlite3.
 
 download here (warning: 2GB): http://missinglink.files.s3.amazonaws.com/boundaries.sqlite3.gz
 
 use it like this:
 
 ```bash
-sqlite> SELECT load_extension('/usr/local/lib/mod_spatialite');
+$ sqlite3 boundaries.sqlite3
+
+sqlite> SELECT load_extension('mod_spatialite');
 sqlite> .timer on
 sqlite> SELECT * FROM boundary WHERE within( GeomFromText('POINT( 13.402247 52.50952 )', 4326), boundary.geom );
 
@@ -71,7 +73,9 @@ Run Time: real 3.871 user 3.188000 sys 0.680000
 use the rtree index to speed up query execution ~35x:
 
 ```bash
-sqlite> SELECT load_extension('/usr/local/lib/mod_spatialite');
+$ sqlite3 boundaries.sqlite3
+
+sqlite> SELECT load_extension('mod_spatialite');
 sqlite> .timer on
 sqlite> SELECT boundary.* FROM box JOIN boundary on box.id = boundary.id
 WHERE ( minX<=13.402247 AND maxX>=13.402247 AND minY<=52.50952 AND maxY>=52.50952 )
