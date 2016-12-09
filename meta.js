@@ -3,51 +3,43 @@ var fs = require('fs');
 var path = require('path');
 var util = require('util');
 
-var dirs = {
-  data: path.resolve( __dirname, './data/' )
-};
-
 var meta = [];
 var header = ['type','id','place','admin_level','name','population','id_in'].join('\t');
 var format = ['%s','%d','%s','%s','%s','%s','%s'].join('\t');
 
-// Loop through all the files in the data directory
-fs.readdir( dirs.data, function( err, files ) {
-
-  if( err ) {
-    console.error( 'Could not list the directory.', err );
-    process.exit( 1 );
-  }
-
-  files.forEach( function( file, index ) {
-
-    var fullpath = path.join( dirs.data, file );
-    var extension = path.extname(fullpath);
-
-    try {
-      var stat = fs.statSync( fullpath );
-      if( stat.isFile() && '.geojson' === extension ){
-        var geojson = parse(fullpath);
-        var i = info(geojson);
-        i.file = file;
-        console.error( meta.push( i ) );
-      }
-    }
-    catch( e ){
-      console.error( 'Error stating file.', e );
-    }
+// find all geojson files recursively
+function walk( dir ){
+  var results = [];
+  var list = fs.readdirSync( dir );
+  list.forEach( function( file ){
+    var fullpath = path.join( dir, file );
+    var stat = fs.statSync( fullpath );
+    if( !stat ){ return; }
+    if( stat.isFile() && '.geojson' === path.extname( fullpath ) ){ results.push( fullpath ); }
+    else if( stat.isDirectory() ){ results = results.concat( walk( fullpath ) ); }
   });
+  return results;
+}
 
-  // sort ids numerically ASC
-  meta.sort( function( a, b ){
-    return a.id - b.id;
-  });
-
-  // write out
-  console.log( header );
-  process.stdout.write( meta.map( serialize ).join( '\n' ) );
+// parse each geojson file and extract meta data
+walk( path.resolve( __dirname, './data/' ) ).forEach( function( file ){
+  // console.error( file );
+  var geojson = parse( file );
+  var i = info( geojson );
+  i.file = file;
+  meta.push( i );
 });
 
+// sort ids numerically ASC
+meta.sort( function( a, b ){
+  return a.id - b.id;
+});
+
+// write out
+console.log( header );
+process.stdout.write( meta.map( serialize ).join( '\n' ) );
+
+// serialize meta data memo
 function serialize( memo ){
   return util.format( format, memo.type, memo.id,
     JSON.stringify( memo.place || '' ),
@@ -58,34 +50,29 @@ function serialize( memo ){
   );
 }
 
-function info( geojson ){
+// extract info from geojson feature
+function info( feat ){
 
-  for( var i=0; i<geojson.features.length; i++ ){
+  var prop = feat.properties;
+  if( !prop || prop.type !== 'relation' ){ return {}; }
 
-    var feat = geojson.features[i];
-    var prop = feat.properties;
-
-    if( !prop || prop.type !== 'relation' ){ continue; }
-
-    var tags = prop.tags || {};
-    if( !tags.hasOwnProperty('admin_level') ){
-      console.error( 'missing admin_level' );
-    }
-
-    return {
-      type: prop.type,
-      id: parseInt( prop.id, 10 ),
-      place: tags.place,
-      level: tags.admin_level,
-      name: tags.name,
-      population: tags.population,
-      is_in: tags.is_in
-    }
+  var tags = prop.tags || {};
+  if( !tags.hasOwnProperty('admin_level') ){
+    console.error( 'missing admin_level' );
   }
 
-  return {};
+  return {
+    type: prop.type,
+    id: parseInt( prop.id, 10 ),
+    place: tags.place,
+    level: tags.admin_level,
+    name: tags.name,
+    population: tags.population,
+    is_in: tags.is_in
+  };
 }
 
+// json parser
 function parse( path ){
   return JSON.parse( fs.readFileSync( path, 'utf8' ) );
 }
