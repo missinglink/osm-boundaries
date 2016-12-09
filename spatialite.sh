@@ -17,7 +17,7 @@ export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib;
 # note: this requires that sqlite3 is compiled with the json1 extension
 # example: ./configure --enable-json1;
 
-# init - set up a new database
+## init - set up a new database
 function init(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -34,9 +34,9 @@ SELECT AddGeometryColumn('boundary', 'geom', 4326, 'GEOMETRY', 'XY', 1);
 SQL
 }
 
-# json - print a json property from file
-# $1: geojson path: eg. '/tmp/test.geojson'
-# $2: property to extract: eg. '$.geometry'
+## json - print a json property from file
+## $1: geojson path: eg. '/tmp/test.geojson'
+## $2: property to extract: eg. '$.geometry'
 function json(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -45,8 +45,8 @@ SELECT json_extract(( SELECT json FROM file ), '$2' );
 SQL
 }
 
-# index - add a geojson polygon to the database
-# $1: geojson path: eg. '/tmp/test.geojson'
+## index - add a geojson polygon to the database
+## $1: geojson path: eg. '/tmp/test.geojson'
 function index(){
   echo $1;
   sqlite3 $DB <<SQL
@@ -63,7 +63,7 @@ VALUES (
 SQL
 }
 
-# bboxify - create the rtree index required by the 'pipfast' function
+## bboxify - create the rtree index required by the 'pipfast' function
 function bboxify(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -78,7 +78,7 @@ FROM boundary;
 SQL
 }
 
-# fixify - fix broken geometries
+## fixify - fix broken geometries
 function fixify(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -86,17 +86,17 @@ UPDATE boundary SET geom = MakeValid( geom );
 SQL
 }
 
-# index_all - add all geojson polygons in $1 to the database
-# $1: data path: eg. '/tmp/polygons'
+## index_all - add all geojson polygons in $1 to the database
+## $1: data path: eg. '/tmp/polygons'
 function index_all(){
   find "$1" -type f -name '*.geojson' -print0 | while IFS= read -r -d $'\0' file; do
     index $file;
   done
 }
 
-# pip - point-in-polygon test
-# $1: longitude: eg. '151.5942043'
-# $2: latitude: eg. '-33.013441'
+## pip - point-in-polygon test
+## $1: longitude: eg. '151.5942043'
+## $2: latitude: eg. '-33.013441'
 function pip(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -105,9 +105,9 @@ WHERE within( GeomFromText('POINT( $1 $2 )', 4326 ), geom );
 SQL
 }
 
-# pipfast - point-in-polygon test optimized with an rtree index
-# $1: longitude: eg. '151.5942043'
-# $2: latitude: eg. '-33.013441'
+## pipfast - point-in-polygon test optimized with an rtree index
+## $1: longitude: eg. '151.5942043'
+## $2: latitude: eg. '-33.013441'
 function pipfast(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -119,12 +119,12 @@ WHERE id IN (
     AND minY<=$2
     AND maxY>=$2
 )
-AND within( GeomFromText( 'POINT($1 $2)', 4326 ), geom );
+AND within( GeomFromText( 'POINT( $1 $2 )', 4326 ), geom );
 SQL
 }
 
-# contains - find all child polygons contained by: $1
-# $1: id: eg. '2316741'
+## contains - find all child polygons contained by: $1
+## $1: id: eg. '2316741'
 function contains(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -141,8 +141,8 @@ AND CONTAINS(( SELECT geom FROM boundary WHERE id=$1 ), geom );
 SQL
 }
 
-# within - find all parent polygons containing id: $1
-# $1: id: eg. '2316741'
+## within - find all parent polygons containing id: $1
+## $1: id: eg. '2316741'
 function within(){
   sqlite3 $DB <<SQL
 SELECT load_extension('mod_spatialite');
@@ -189,7 +189,8 @@ case "$1" in
 'contains') contains "$2";;
 'within') within "$2";;
 *)
-  echo "invalid command: $1"
-  grep -B2 'function ' $0;
+  BR='-------------------------------------------------------------------------'
+  printf "%s\n" $BR
+  grep -C0 --group-separator=$BR '##' $0 | grep -v 'grep' | sed 's/##//g';
   ;;
 esac
