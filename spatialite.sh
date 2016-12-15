@@ -159,6 +159,45 @@ AND WITHIN(( SELECT geom FROM boundary WHERE id=$1 ), geom );
 SQL
 }
 
+## extract - copy database records within id: $2
+## $1: new db name: eg. 'extract.db'
+## $2: id: eg. '2316741'
+function extract(){
+
+  # switch db var
+  MAINDB="$DB";
+  DB="$1";
+
+  init; # init new db
+
+  sqlite3 $MAINDB <<SQL
+PRAGMA foreign_keys=OFF;
+PRAGMA page_size=4096;
+PRAGMA cache_size=-2000;
+PRAGMA synchronous=OFF;
+PRAGMA journal_mode=OFF;
+PRAGMA temp_store=MEMORY;
+
+SELECT load_extension('mod_spatialite');
+ATTACH DATABASE '$1' AS 'extract';
+WITH base AS ( SELECT * FROM boundary JOIN box ON boundary.id = box.id WHERE boundary.id=$2 )
+INSERT INTO extract.boundary SELECT * FROM main.boundary
+WHERE id IN (
+  SELECT id FROM box WHERE
+  minX>=( SELECT minX FROM base ) AND
+  maxX<=( SELECT maxX FROM base ) AND
+  minY>=( SELECT minY FROM base ) AND
+  maxY<=( SELECT maxY FROM base )
+)
+AND (
+  id=$2 OR
+  CONTAINS(( SELECT geom FROM base ), geom )
+);
+SQL
+
+  bboxify; # create rtree for new db
+}
+
 # --- standard build process ---
 # init;
 # index_all "$DIR/data";
@@ -188,6 +227,7 @@ case "$1" in
 'pipfast') pipfast "$2" "$3";;
 'contains') contains "$2";;
 'within') within "$2";;
+'extract') extract "$2" "$3";;
 *)
   BR='-------------------------------------------------------------------------'
   printf "%s\n" $BR
